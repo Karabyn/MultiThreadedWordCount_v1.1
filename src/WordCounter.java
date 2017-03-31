@@ -17,9 +17,6 @@ public class WordCounter {
     private static int numberOfThreads;
     private static String[] textBlocks;
     private static HashMap<String, Integer> mainHashMap = new HashMap<>();
-    private static long readingTime = 0;
-    private static long wordCountTime = 0;
-    private static long totalTime = 0;
 
     public static void main(String[] args) {
         WordCounter wordCounter = new WordCounter();
@@ -29,20 +26,19 @@ public class WordCounter {
         // reading
         long readingStartTime = System.nanoTime();
         wordCounter.readFile(filename);
-        long executionTime = System.nanoTime() - readingStartTime;
-        System.out.println("Reading time: " + String.format("%d s %d ms", TimeUnit.NANOSECONDS.toSeconds(executionTime),
-                TimeUnit.NANOSECONDS.toMillis(executionTime) - TimeUnit.SECONDS.toMillis(TimeUnit.NANOSECONDS.toSeconds(executionTime))));
+        long readingExecutionTime = System.nanoTime() - readingStartTime;
+        System.out.println("Reading time: " + wordCounter.timeToString(readingExecutionTime));
 
         // extracting and counting words in threads
         long wordCountStartTime = System.nanoTime();
         wordCounter.divideString();
 
-        CounterThread[] counterThreads = new CounterThread[numberOfThreads];
+        CounterThread[] threadsArray = new CounterThread[numberOfThreads];
         for(int i = 0; i < numberOfThreads; i++) {
-            counterThreads[i] = new CounterThread(textBlocks[i]);
-            counterThreads[i].start();
+            threadsArray[i] = new CounterThread(textBlocks[i]);
+            threadsArray[i].start();
         }
-        for(CounterThread thread : counterThreads) {
+        for(CounterThread thread : threadsArray) {
             try {
                 thread.join();
             } catch (InterruptedException e) {
@@ -51,12 +47,16 @@ public class WordCounter {
             for (Map.Entry<String, Integer> e : thread.wordCountHashMap.entrySet())
                 mainHashMap.merge(e.getKey(), e.getValue(), Integer::sum);
         }
-        executionTime = System.nanoTime() - wordCountStartTime;
-        System.out.println("Word count time: " + String.format("%d s %d ms", TimeUnit.NANOSECONDS.toSeconds(executionTime),
-                TimeUnit.NANOSECONDS.toMillis(executionTime) - TimeUnit.SECONDS.toMillis(TimeUnit.NANOSECONDS.toSeconds(executionTime))));
+        long wordCountExecutionTime = System.nanoTime() - wordCountStartTime;
+        System.out.println("Word count time: " + wordCounter.timeToString(wordCountExecutionTime));
+
+        long totalexecutionTime = readingExecutionTime + wordCountExecutionTime;
+        System.out.println("Total time: " + wordCounter.timeToString(totalexecutionTime));
 
         wordCounter.sortByOccurrences(mainHashMap);
         wordCounter.sortByAlphabet(mainHashMap);
+        wordCounter.writeOutputFile(readingExecutionTime, wordCountExecutionTime, totalexecutionTime);
+
     }
 
     private void getRunConfig() {
@@ -145,6 +145,24 @@ public class WordCounter {
         }
     }
 
+    private void writeOutputFile(long reading, long count, long total) {
+        try{
+            PrintWriter writer = new PrintWriter("outputFile.txt", "UTF-8");
+            writer.println("Reading time: " + timeToString(reading));
+            writer.println("Word count time: " + timeToString(count));
+            writer.println("Total time: " + timeToString(total));
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String timeToString(long time) {
+        String timeString = String.format("%d s %d ms", TimeUnit.NANOSECONDS.toSeconds(time),
+                TimeUnit.NANOSECONDS.toMillis(time) - TimeUnit.SECONDS.toMillis(TimeUnit.NANOSECONDS.toSeconds(time)));
+        return timeString;
+    }
+
     private int numberOfDistinctWords(HashMap<String, Integer> wordCount) {
         return wordCount.size();
     }
@@ -160,7 +178,7 @@ class CounterThread extends Thread {
     }
 
     private String[] extractOnlyWords() {
-        return text.replaceAll("[\\W]", " ").toLowerCase().split("\\s++");
+        return text.replaceAll("\\W|\\d|\\_", " ").toLowerCase().split("\\s++");
     }
 
     private void wordCount(String[] words) {
