@@ -1,0 +1,2 @@
+4 (number of threads)
+books1-14.txt (path to file to read from)
